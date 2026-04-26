@@ -23,11 +23,11 @@
 #include "py32f0xx.h"
 
 #if !defined  (HSE_VALUE)
-#define HSE_VALUE    24000000U    /*!< Value of the External oscillator in Hz */
+#define HSE_VALUE    25000000U    /*!< Value of the External oscillator in Hz */
 #endif /* HSE_VALUE */
 
 #if !defined  (HSI_VALUE)
-#define HSI_VALUE  8000000U   /*!< Value of the Internal oscillator in Hz*/
+#define HSI_VALUE  24000000U   /*!< Value of the Internal oscillator in Hz*/
 #endif /* HSI_VALUE */
 
 #if !defined  (LSI_VALUE)
@@ -127,6 +127,7 @@ void SystemInit(void)
 {
   /* Set the HSI clock to 8MHz by default */
   RCC->ICSCR = (RCC->ICSCR & 0xFFFF0000) | (0x1 << 13) | *(uint32_t *)(0x1fff0f04);
+
 
   /* Configure the Vector Table location add offset address ------------------*/
 #ifdef VECT_TAB_SRAM

@@ -24,6 +24,8 @@
 #include "main.h"
 #include "py32f0xx_it.h"
 
+
+
 /* Private includes ----------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -34,7 +36,7 @@
 /* External variables --------------------------------------------------------*/
 
 /******************************************************************************/
-/*           Cortex-M0+ Processor Interruption and Exception Handlers         */
+/*           Cortex-M0+ Processor Interruption and Exception Handlers          */ 
 /******************************************************************************/
 /**
   * @brief This function handles Non maskable interrupt.
@@ -72,6 +74,7 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
+  HAL_IncTick();
 }
 
 /******************************************************************************/
@@ -80,5 +83,8 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file.                                          */
 /******************************************************************************/
+
+
+
 
 /************************ (C) COPYRIGHT Puya *****END OF FILE******************/
