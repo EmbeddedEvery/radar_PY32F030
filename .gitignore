@@ -1,0 +1,58 @@
+# Keil MDK / uVision generated files
+
+# Build output directory
+MDK-ARM/Objects/
+MDK-ARM/Listings/
+
+# uVision project user-specific files
+MDK-ARM/*.uvguix.*
+MDK-ARM/*.uvgui.*
+MDK-ARM/*.uvopt
+MDK-ARM/*.uvoptx
+
+# Debug configuration (optional, uncomment if not sharing debug settings)
+# MDK-ARM/DebugConfig/
+
+# JLink / CMSIS-DAP logs
+JLinkLog.txt
+JLinkSettings.ini
+
+# IAR EWARM generated files
+EWARM/*/Exe/
+EWARM/*/Obj/
+EWARM/*/List/
+EWARM/settings/
+
+# General build artifacts
+*.o
+*.obj
+*.d
+*.lst
+*.map
+*.axf
+*.elf
+*.hex
+*.bin
+*.htm
+*.lnp
+*.sct
+*.dep
+*.crf
+*.tra
+*.iex
+*.build_log.htm
+*.browse.vc.db
+*.openocd
+
+# Backup files
+*.bak
+*.bk
+*.ddk
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
