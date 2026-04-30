@@ -16,48 +16,62 @@
   ******************************************************************************
   */
 #include "main.h"
+#include "mems/vibration_sensor.h"
+#include "spi/bsp_spi.h"
 #include "usart/bsp_usart.h"
-#include "adc/bsp_adc_singleconv_polling.h"
 #include "led/bsp_gpio_led.h"
 
-
-
-static void APP_SystemClockConfig(void);
+static void APP_EnterStopMode(void);
 
 /**
-  * @brief  应用程序入口函数.
+  * @brief  应用程序入口函数.0
   * @retval int
   */
 int main(void)
 {
-    /* 初始化所有外设，Flash接口，SysTick */
     HAL_Init();
-    /* 系统时钟配置 48M */
     APP_SystemClockConfig();
 
-    /* Debug串口初始化 */
     DEBUG_USART_Config(115200);
     Bsp_Led_Init();
-    
-    /* ADC初始化 */
-    Bsp_ADC_SingleConv_Polling_Init();
+
+  APP_LOG("System boot");
+  BSP_SPI_Init();
+  APP_LOG("SPI ready");
+
+  /* ===== CS# Pin Test ===== */
+  /* Test if CS# can toggle freely without SPI interference */
+  // APP_LOG("Testing CS# pin toggle...");
+  // for (int i = 0; i < 10; i++)
+  // {
+  //   BSP_SPI_CS_Low();
+  //   HAL_Delay(100);
+  //   BSP_SPI_CS_High();
+  //   HAL_Delay(100);
+  //   APP_LOG("CS# toggle %d done", i);
+  // }
+  // APP_LOG("CS# test complete");
+  /* ===== End of test ===== */
+
+  if (VibrationSensor_Init() != HAL_OK)
+  {
+    APP_LOG("Vibration sensor bring-up failed");
+    APP_ErrorHandler();
+  }
+
+  APP_LOG("Entering vibration wakeup flow");
 
     while (1)
     {
-         /* ADC开启 */  
-        HAL_ADC_Start(&AdcHandle);  
-        printf("\r\n");        
-				LED2_TOGGLE();
-        for (uint8_t i = 0; i < 3; i++)
+    if (VibrationSensor_HasWakeEvent() != 0U)
         {
-            /* 等待ADC转换 */
-            HAL_ADC_PollForConversion(&AdcHandle, 10000); 
-            /* 获取AD值 */
-            adc_value[i] = HAL_ADC_GetValue(&AdcHandle);                       
-            printf("adc[%d]:%d\r\n", i, adc_value[i]);
+      VibrationSensor_ClearWakeEvent();
+      APP_LOG("Wake event received");
+      LED2_TOGGLE();
+      HAL_Delay(50);
         }
-        printf("\r\n"); 
-        HAL_Delay(1000);
+
+    APP_EnterStopMode();
     }
 }
 
@@ -66,23 +80,29 @@ int main(void)
   * @param  无
   * @retval 无
   */
-static void APP_SystemClockConfig(void)
+void APP_SystemClockConfig(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
     
     /* 振荡器配置 */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI | RCC_OSCILLATORTYPE_LSE; /* 选择振荡器HSE,HSI,LSI,LSE */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI;
+#if defined(RCC_LSE_SUPPORT)
+  RCC_OscInitStruct.OscillatorType |= RCC_OSCILLATORTYPE_LSE;
+#endif
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;                          /* 开启HSI */
     RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;                          /* HSI 1分频 */
     RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_24MHz;  /* 配置HSI时钟24MHz */
-    RCC_OscInitStruct.HSEState = RCC_HSE_ON;                         /* 关闭HSE */
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;                         /* 开启HSE */
     RCC_OscInitStruct.HSEFreq = RCC_HSE_16_32MHz;
     RCC_OscInitStruct.LSIState = RCC_LSI_OFF;                         /* 关闭LSI */
+#if defined(RCC_LSE_SUPPORT)
     RCC_OscInitStruct.LSEState = RCC_LSE_OFF;                         /* 关闭LSE */
-    /*RCC_OscInitStruct.LSEDriver = RCC_LSEDRIVE_MEDIUM;*/
+#endif
+#if defined(RCC_PLL_SUPPORT)
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;                     /* 开启PLL */
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+#endif
     /* 配置振荡器 */
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
@@ -101,6 +121,16 @@ static void APP_SystemClockConfig(void)
     }
 }
 
+static void APP_EnterStopMode(void)
+{
+  APP_LOG("Enter STOP mode");
+  HAL_SuspendTick();
+  HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
+  HAL_ResumeTick();
+  APP_SystemClockConfig();
+  APP_LOG("Leave STOP mode");
+}
+
 /**
   * @brief  错误执行函数
   * @param  无
@@ -108,10 +138,12 @@ static void APP_SystemClockConfig(void)
   */
 void APP_ErrorHandler(void)
 {
+  APP_LOG("Fatal error");
   /* 无限循环 */
   while (1)
   {
-		
+    LED3_TOGGLE();
+    HAL_Delay(150);
   }
 }
 

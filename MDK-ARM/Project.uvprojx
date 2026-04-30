@@ -438,6 +438,21 @@
               <FileType>1</FileType>
               <FilePath>..\User\usart\bsp_usart.c</FilePath>
             </File>
+            <File>
+              <FileName>bsp_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\spi\bsp_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>sc7a20h.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\mems\sc7a20h.c</FilePath>
+            </File>
+            <File>
+              <FileName>vibration_sensor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\mems\vibration_sensor.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

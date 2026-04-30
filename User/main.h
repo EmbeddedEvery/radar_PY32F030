@@ -31,12 +31,14 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "py32f0xx_hal.h"
+#include "debug_log.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* Private defines -----------------------------------------------------------*/
 /* Exported variables prototypes ---------------------------------------------*/
 /* Exported functions prototypes ---------------------------------------------*/
 void APP_ErrorHandler(void);
+void APP_SystemClockConfig(void);
 
 #ifdef __cplusplus
 }

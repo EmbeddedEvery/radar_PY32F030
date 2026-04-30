@@ -22,6 +22,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "mems/vibration_sensor.h"
 #include "py32f0xx_it.h"
 
 
@@ -83,6 +84,11 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file.                                          */
 /******************************************************************************/
+
+void EXTI0_1_IRQHandler(void)
+{
+  VibrationSensor_IrqHandler();
+}
 
 
 
