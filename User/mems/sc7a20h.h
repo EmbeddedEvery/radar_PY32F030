@@ -47,10 +47,22 @@ typedef struct
 } SC7A20H_WakeupConfig;
 
 /* ------------------------------------------------------------------ */
+/*  Acceleration data                                                   */
+/* ------------------------------------------------------------------ */
+typedef struct
+{
+    int16_t x;  /*!< X-axis acceleration */
+    int16_t y;  /*!< Y-axis acceleration */
+    int16_t z;  /*!< Z-axis acceleration */
+} SC7A20H_AccelData;
+
+/* ------------------------------------------------------------------ */
 /*  API                                                                 */
 /* ------------------------------------------------------------------ */
 HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config);
 HAL_StatusTypeDef SC7A20H_ReadWhoAmI(uint8_t *id);
+HAL_StatusTypeDef SC7A20H_ReadAccel(SC7A20H_AccelData *accel);
+void SC7A20H_PrintAccel(void);
 HAL_StatusTypeDef SC7A20H_ClearInterrupt(void);
 
 #endif /* __SC7A20H_H */

@@ -1,25 +1,12 @@
-/**
-  ******************************************************************************
-  * @file     main.c
-  * @author   embedfire
-  * @version  V1.0
-  * @date     2024
-  * @brief    ADC_SingleConversion_TriggerTimer_IT 
-  ******************************************************************************
-  * @attention
-  *
-  * 实验平台：野火 ebf_py32f030 PY32开发板 
-  * 论坛      ：http://www.firebbs.cn
-  * 官网      ：https://embedfire.com/
-  * 淘宝      ：https://yehuosm.tmall.com/
-  *
-  ******************************************************************************
-  */
+
 #include "main.h"
 #include "mems/vibration_sensor.h"
 #include "spi/bsp_spi.h"
 #include "usart/bsp_usart.h"
 #include "led/bsp_gpio_led.h"
+#include "mems/sc7a20h.h"
+
+#define DEBUG_LOG_ENABLE 1
 
 static void APP_EnterStopMode(void);
 
@@ -53,6 +40,41 @@ int main(void)
   // APP_LOG("CS# test complete");
   /* ===== End of test ===== */
 
+  # if (DEBUG_LOG_ENABLE)
+  APP_LOG("Debug log enabled, skipping vibration sensor init");
+  
+  /* Initialize SC7A20H for accelerometer testing */
+  SC7A20H_WakeupConfig wakeup_config = {
+      .threshold = 0x10U,
+      .duration = 0x00U,
+  };
+  
+  if (SC7A20H_Init(&wakeup_config) != HAL_OK)
+  {
+      APP_LOG("SC7A20H initialization failed");
+      APP_ErrorHandler();
+  }
+  
+  APP_LOG("SC7A20H initialized successfully, starting XYZ test");
+  
+  /* Test loop: print XYZ every 1 second */
+  while (1)
+  {
+      static uint32_t last_print_tick = 0U;
+      uint32_t current_tick = HAL_GetTick();
+      
+      /* Print XYZ every 1 second */
+      if ((current_tick - last_print_tick) >= 1000U)
+      {
+          last_print_tick = current_tick;
+          SC7A20H_PrintAccel();
+          LED2_TOGGLE();  /* Toggle LED to show main loop is running */
+      }
+      
+      HAL_Delay(10);  /* Small delay to avoid CPU spinning */
+  }
+
+  #else
   if (VibrationSensor_Init() != HAL_OK)
   {
     APP_LOG("Vibration sensor bring-up failed");
@@ -73,6 +95,7 @@ int main(void)
 
     APP_EnterStopMode();
     }
+  #endif
 }
 
 /**

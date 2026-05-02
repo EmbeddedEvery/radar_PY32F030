@@ -115,6 +115,23 @@ HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config)
 
     if (who_am_i != SC7A20H_EXPECTED_ID)
     {
+        APP_LOG("SC7A20H: WHO_AM_I mismatch! Got 0x%02X, expected 0x%02X", who_am_i, SC7A20H_EXPECTED_ID);
+        APP_LOG("SC7A20H: Scanning registers 0x00-0x40 to find valid data...");
+        
+        for (uint8_t scan_addr = 0x00U; scan_addr <= 0x40U; scan_addr++)
+        {
+            uint8_t scan_val = 0U;
+            HAL_StatusTypeDef scan_status = SC7A20H_ReadReg(scan_addr, &scan_val);
+            if (scan_status == HAL_OK && scan_val != 0xFFU && scan_val != 0x00U)
+            {
+                APP_LOG("  Reg[0x%02X] = 0x%02X", scan_addr, scan_val);
+                if (scan_val == 0x11U)
+                {
+                    APP_LOG("  ^ Found 0x11 at 0x%02X (expected at 0x0F)", scan_addr);
+                }
+            }
+        }
+        
         APP_LOG("SC7A20H: chip not found");
         return HAL_ERROR;
     }
@@ -122,8 +139,8 @@ HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config)
     /* --- Configure device --- */
     /* ODR=100Hz, normal power, all axes enabled */
     SC7A20H_WriteReg(SC7A20H_CTRL_REG1, 0x57U);
-    /* FS=±2g */
-    SC7A20H_WriteReg(SC7A20H_CTRL_REG4, 0x01U);
+    /* FS=±2g, SIM=0 (4-wire SPI mode, not 3-wire) */
+    SC7A20H_WriteReg(SC7A20H_CTRL_REG4, 0x00U);
 
     APP_LOG("SC7A20H: init ok, thr=0x%02X dur=0x%02X",
             config->threshold, config->duration);
@@ -139,5 +156,70 @@ HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config)
 HAL_StatusTypeDef SC7A20H_ClearInterrupt(void)
 {
     return HAL_OK;
+}
+
+/* ------------------------------------------------------------------ */
+/*  SC7A20H_ReadAccel                                                   */
+/*  Read X, Y, Z acceleration data from output registers               */
+/*  Registers: 0x28-0x29 (X), 0x2A-0x2B (Y), 0x2C-0x2D (Z)             */
+/* ------------------------------------------------------------------ */
+HAL_StatusTypeDef SC7A20H_ReadAccel(SC7A20H_AccelData *accel)
+{
+    HAL_StatusTypeDef status;
+    uint8_t x_l, x_h, y_l, y_h, z_l, z_h;
+
+    if (accel == NULL)
+    {
+        return HAL_ERROR;
+    }
+
+    /* Read X-axis data (OUT_X_L=0x28, OUT_X_H=0x29) */
+    status = SC7A20H_ReadReg(0x28U, &x_l);
+    if (status != HAL_OK) return status;
+
+    status = SC7A20H_ReadReg(0x29U, &x_h);
+    if (status != HAL_OK) return status;
+
+    /* Read Y-axis data (OUT_Y_L=0x2A, OUT_Y_H=0x2B) */
+    status = SC7A20H_ReadReg(0x2AU, &y_l);
+    if (status != HAL_OK) return status;
+
+    status = SC7A20H_ReadReg(0x2BU, &y_h);
+    if (status != HAL_OK) return status;
+
+    /* Read Z-axis data (OUT_Z_L=0x2C, OUT_Z_H=0x2D) */
+    status = SC7A20H_ReadReg(0x2CU, &z_l);
+    if (status != HAL_OK) return status;
+
+    status = SC7A20H_ReadReg(0x2DU, &z_h);
+    if (status != HAL_OK) return status;
+
+    /* Combine low and high bytes (little-endian format) */
+    accel->x = (int16_t)((x_h << 8) | x_l);
+    accel->y = (int16_t)((y_h << 8) | y_l);
+    accel->z = (int16_t)((z_h << 8) | z_l);
+
+    return HAL_OK;
+}
+
+/* ------------------------------------------------------------------ */
+/*  SC7A20H_PrintAccel                                                  */
+/*  Read and print X, Y, Z acceleration data                            */
+/* ------------------------------------------------------------------ */
+void SC7A20H_PrintAccel(void)
+{
+    SC7A20H_AccelData accel;
+    HAL_StatusTypeDef status;
+
+    status = SC7A20H_ReadAccel(&accel);
+    if (status == HAL_OK)
+    {
+        APP_LOG("Accel - X: %6d, Y: %6d, Z: %6d (mg)",
+                accel.x, accel.y, accel.z);
+    }
+    else
+    {
+        APP_LOG("Accel - Failed to read acceleration data (status=%d)", status);
+    }
 }
 
