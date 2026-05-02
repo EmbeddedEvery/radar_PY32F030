@@ -69,20 +69,49 @@ HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config)
 {
     HAL_StatusTypeDef status;
     uint8_t who_am_i = 0U;
+    uint8_t retry_count = 0U;
 
     if (config == NULL)
     {
         return HAL_ERROR;
     }
 
-    status = SC7A20H_ReadWhoAmI(&who_am_i);
+    /* Power-up delay */
+    HAL_Delay(100);
+
+    /* Perform soft reset via BOOT bit in CTRL_REG2 */
+    APP_LOG("SC7A20H: Performing soft reset...");
+    SC7A20H_WriteReg(SC7A20H_CTRL_REG2, SC7A20H_CTRL_REG2_BOOT);
+    
+    /* Wait for reset to complete (typically 5-10ms) */
+    HAL_Delay(100);
+
+    /* Try to read WHO_AM_I up to 5 times */
+    for (retry_count = 0U; retry_count < 5U; retry_count++)
+    {
+        status = SC7A20H_ReadWhoAmI(&who_am_i);
+        
+        APP_LOG("SC7A20H: WHO_AM_I=0x%02X (expected 0x%02X), attempt %d",
+                who_am_i, SC7A20H_EXPECTED_ID, retry_count + 1);
+        
+        if (status == HAL_OK && who_am_i == SC7A20H_EXPECTED_ID)
+        {
+            APP_LOG("SC7A20H: Chip detected successfully");
+            break;  /* Success */
+        }
+        
+        if (retry_count < 4U)
+        {
+            APP_LOG("SC7A20H: Retrying after reset...");
+            HAL_Delay(100);
+        }
+    }
+
     if (status != HAL_OK)
     {
         APP_LOG("SC7A20H: SPI read error");
         return HAL_ERROR;
     }
-
-    APP_LOG("SC7A20H: WHO_AM_I=0x%02X (expected 0x%02X)", who_am_i, SC7A20H_EXPECTED_ID);
 
     if (who_am_i != SC7A20H_EXPECTED_ID)
     {

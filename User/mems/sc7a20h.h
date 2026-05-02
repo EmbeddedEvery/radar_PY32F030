@@ -26,6 +26,9 @@
 #define SC7A20H_CTRL_REG5               0x24U
 #define SC7A20H_CTRL_REG6               0x25U
 
+/* CTRL_REG2 bits */
+#define SC7A20H_CTRL_REG2_BOOT          0x80U  /* Boot bit for soft reset */
+
 /* ------------------------------------------------------------------ */
 /*  INT1 registers                                                      */
 /* ------------------------------------------------------------------ */
