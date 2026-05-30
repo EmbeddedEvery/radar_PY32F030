@@ -14,15 +14,15 @@ HAL_StatusTypeDef VibrationSensor_Init(void)
     HAL_StatusTypeDef status;
 
     SC7A20H_WakeupConfig wakeup_config = {
-        .threshold = 0x10U,
-        .duration = 0x00U,
+        .threshold = 0x20U,  /* ~1.28g @ ±4g */
+        .duration = 0x00U,   /* 0 = immediate trigger (maximum sensitivity) */
     };
 
     VIBRATION_INT_GPIO_CLK_ENABLE();
 
     gpio_init.Pin = VIBRATION_INT_PIN;
-    gpio_init.Mode = GPIO_MODE_INPUT;
-    gpio_init.Pull = GPIO_NOPULL;
+    gpio_init.Mode = GPIO_MODE_IT_RISING;
+    gpio_init.Pull = GPIO_PULLDOWN;  /* Keep PB1 low when INT1 not connected */
     gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(VIBRATION_INT_PORT, &gpio_init);
 
@@ -41,6 +41,7 @@ HAL_StatusTypeDef VibrationSensor_Init(void)
     status = SC7A20H_Init(&wakeup_config);
     if (status == HAL_OK)
     {
+        (void)SC7A20H_ClearInterrupt();  /* Clear any initial latch on boot-up */
         APP_LOG("Vibration sensor init ok");
     }
     else
@@ -64,10 +65,14 @@ uint8_t VibrationSensor_HasWakeEvent(void)
 void VibrationSensor_ClearWakeEvent(void)
 {
     vibration_wake_flag = 0U;
+    (void)SC7A20H_ClearInterrupt();  /* Clear physical sensor latch to pull INT1 pin low */
 }
 
 static void VibrationSensor_ExtiCallback(void)
 {
     vibration_wake_flag = 1U;
-    (void)SC7A20H_ClearInterrupt();
+    /* Do NOT call SC7A20H_ClearInterrupt() here via SPI.
+       During wakeup from STOP mode, clocks are not fully restored and 
+       SysTick is suspended. Any SPI operations here can cause infinite loops. 
+       The physical sensor interrupt will be cleared in the main loop. */
 }

@@ -339,11 +339,24 @@ HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config)
     }
 
     /* --- Configure device --- */
-    /* ODR=100Hz, LPen=1, XYZ enabled, FS=±2g */
+    /* ODR=100Hz, LPen=1, XYZ enabled, FS=±4g */
     SC7A20H_SetODR(SC7A20H_CTRL_REG1_ODR_100HZ);
     SC7A20H_SetLowPowerMode(1);
     SC7A20H_SetAxis(SC7A20H_CTRL_REG1_XYZ_ENABLE);
-    SC7A20H_SetFullScale(SC7A20H_CTRL_REG4_FS_16G);
+    SC7A20H_SetFullScale(SC7A20H_CTRL_REG4_FS_4G);
+
+    /* Route AOI1 (Interrupt 1) to physical INT1 pin */
+    SC7A20H_WriteReg(SC7A20H_CTRL_REG3, SC7A20H_CTRL_REG3_I1_AOI1);
+
+    /* Latch Interrupt 1 request on INT1_SRC register (remains active until INT1_SRC is read) */
+    SC7A20H_WriteReg(SC7A20H_CTRL_REG5, SC7A20H_CTRL_REG5_LIR_INT1);
+
+    /* Configure INT1 wakeup threshold and duration */
+    /* Enable X, Y, Z high event interrupts only (no low event to avoid triggering when static) */
+    uint8_t int1_cfg = SC7A20H_INT1_CFG_XHIE |
+                       SC7A20H_INT1_CFG_YHIE |
+                       SC7A20H_INT1_CFG_ZHIE;
+    (void)SC7A20H_SetInt1Config(int1_cfg, config->threshold, config->duration);
 
     APP_LOG("SC7A20H: init ok, thr=0x%02X dur=0x%02X",
             config->threshold, config->duration);
@@ -352,13 +365,33 @@ HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config)
 }
 
 /* ------------------------------------------------------------------ */
+/*  SC7A20H_SetInt1Config                                               */
+/* ------------------------------------------------------------------ */
+HAL_StatusTypeDef SC7A20H_SetInt1Config(uint8_t int1_cfg, uint8_t threshold, uint8_t duration)
+{
+    HAL_StatusTypeDef status;
+
+    status = SC7A20H_WriteReg(SC7A20H_INT1_CFG, int1_cfg);
+    if (status != HAL_OK) {
+        return status;
+    }
+
+    status = SC7A20H_WriteReg(SC7A20H_INT1_THS, threshold);
+    if (status != HAL_OK) {
+        return status;
+    }
+
+    return SC7A20H_WriteReg(SC7A20H_INT1_DURATION, duration);
+}
+
+/* ------------------------------------------------------------------ */
 /*  SC7A20H_ClearInterrupt                                              */
-/*  Dummy function for I2C (not needed, interrupt handling is in      */
-/*  vibration_sensor.c EXTI callback).                                 */
+/*  Read INT1 source register to clear pending interrupt status        */
 /* ------------------------------------------------------------------ */
 HAL_StatusTypeDef SC7A20H_ClearInterrupt(void)
 {
-    return HAL_OK;
+    uint8_t src = 0U;
+    return SC7A20H_ReadReg(SC7A20H_INT1_SRC, &src);
 }
 
 /* ------------------------------------------------------------------ */

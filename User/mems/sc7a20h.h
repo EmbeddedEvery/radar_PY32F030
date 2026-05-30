@@ -73,6 +73,22 @@
 #define SC7A20H_INT1_THS                0x32U
 #define SC7A20H_INT1_DURATION           0x33U
 
+/* INT1 configuration bits */
+#define SC7A20H_INT1_CFG_XLIE           0x01U
+#define SC7A20H_INT1_CFG_XHIE           0x02U
+#define SC7A20H_INT1_CFG_YLIE           0x04U
+#define SC7A20H_INT1_CFG_YHIE           0x08U
+#define SC7A20H_INT1_CFG_ZLIE           0x10U
+#define SC7A20H_INT1_CFG_ZHIE           0x20U
+#define SC7A20H_INT1_CFG_6D             0x40U
+#define SC7A20H_INT1_CFG_AOI            0x80U
+
+/* CTRL_REG3 configuration bits (Interrupt 1 routing) */
+#define SC7A20H_CTRL_REG3_I1_AOI1       0x40U  /* Route AOI1 interrupt to physical INT1 pin */
+
+/* CTRL_REG5 configuration bits */
+#define SC7A20H_CTRL_REG5_LIR_INT1      0x08U  /* Latch interrupt request on INT1_SRC */
+
 /* ------------------------------------------------------------------ */
 /*  Wakeup configuration                                                */
 /* ------------------------------------------------------------------ */
@@ -96,6 +112,7 @@ typedef struct
 /*  API                                                                 */
 /* ------------------------------------------------------------------ */
 HAL_StatusTypeDef SC7A20H_Init(const SC7A20H_WakeupConfig *config);
+HAL_StatusTypeDef SC7A20H_SetInt1Config(uint8_t int1_cfg, uint8_t threshold, uint8_t duration);
 HAL_StatusTypeDef SC7A20H_ReadWhoAmI(uint8_t *id);
 HAL_StatusTypeDef SC7A20H_ReadAccel(SC7A20H_AccelData *accel);
 void SC7A20H_PrintAccel(void);

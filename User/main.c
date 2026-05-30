@@ -5,8 +5,9 @@
 #include "usart/bsp_usart.h"
 #include "led/bsp_gpio_led.h"
 #include "mems/sc7a20h.h"
+// #include "bsp_low_power.h"
 
-#define DEBUG_LOG_ENABLE 1
+#define DEBUG_LOG_ENABLE 0
 
 static void APP_EnterStopMode(void);
 
@@ -22,23 +23,20 @@ int main(void)
     DEBUG_USART_Config(115200);
     Bsp_Led_Init();
 
+    // Debugging For LowPower
+    //BSP_LowPower_Init();
+    //BSP_LowPower_ConfigExternalWakeup(GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
+    // WakeupSource_t reason = BSP_LowPower_GetWakeupReason();
+    // if (reason == WAKEUP_EXTI_PA0) {
+    //     // GPIO PA0 triggered wakeup
+    // }
+    //BSP_LowPower_EnterStandby(WAKEUP_EXTI_PA0);
+
+
   APP_LOG("System boot");
   BSP_SPI_Init();
   APP_LOG("SPI ready");
 
-  /* ===== CS# Pin Test ===== */
-  /* Test if CS# can toggle freely without SPI interference */
-  // APP_LOG("Testing CS# pin toggle...");
-  // for (int i = 0; i < 10; i++)
-  // {
-  //   BSP_SPI_CS_Low();
-  //   HAL_Delay(100);
-  //   BSP_SPI_CS_High();
-  //   HAL_Delay(100);
-  //   APP_LOG("CS# toggle %d done", i);
-  // }
-  // APP_LOG("CS# test complete");
-  /* ===== End of test ===== */
 
   # if (DEBUG_LOG_ENABLE)
   APP_LOG("Debug log enabled, skipping vibration sensor init");
@@ -81,20 +79,47 @@ int main(void)
     APP_ErrorHandler();
   }
 
-  APP_LOG("Entering vibration wakeup flow");
+  APP_LOG("Vibration sensor initialized successfully.");
 
-    while (1)
+  while (1)
+  {
+    APP_LOG("MCU Started / Woken Up!");
+    
+    // Countdown 20 seconds before entering STOP mode
+    for (int i = 20; i > 0; i--)
     {
-    if (VibrationSensor_HasWakeEvent() != 0U)
-        {
-      VibrationSensor_ClearWakeEvent();
-      APP_LOG("Wake event received");
-      LED2_TOGGLE();
-      HAL_Delay(50);
-        }
-
-    APP_EnterStopMode();
+      APP_LOG("Entering STOP mode in %d seconds...", i);
+      LED2_TOGGLE();  /* Blink LED to show countdown is running */
+      
+      /* DIAGNOSTIC: Check if EXTI triggers during countdown! */
+      if (VibrationSensor_HasWakeEvent() != 0U) {
+          APP_LOG(">>> EXTI EVENT DETECTED DURING COUNTDOWN <<<");
+          VibrationSensor_ClearWakeEvent();
+      }
+      
+      HAL_Delay(1000);
     }
+    
+    // Ensure LED2 is turned off during sleep to minimize power consumption
+    LED2(LED_OFF);
+    
+    // Clear any previous wake event before going to sleep
+    VibrationSensor_ClearWakeEvent();
+    
+    // Enter STOP LPR mode (low power regulator) and wait for interrupt
+    APP_EnterStopMode();
+    
+    // Resume here after wakeup
+    if (VibrationSensor_HasWakeEvent() != 0U)
+    {
+      APP_LOG("Wakeup event detected: SC7A20H Vibration triggered!");
+      VibrationSensor_ClearWakeEvent();
+    }
+    else
+    {
+      APP_LOG("Wakeup event detected: Unknown source");
+    }
+  }
   #endif
 }
 
@@ -105,51 +130,55 @@ int main(void)
   */
 void APP_SystemClockConfig(void)
 {
-    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-    
-    /* 振荡器配置 */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI;
-#if defined(RCC_LSE_SUPPORT)
-  RCC_OscInitStruct.OscillatorType |= RCC_OSCILLATORTYPE_LSE;
-#endif
-    RCC_OscInitStruct.HSIState = RCC_HSI_ON;                          /* 开启HSI */
-    RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;                          /* HSI 1分频 */
-    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_24MHz;  /* 配置HSI时钟24MHz */
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;                         /* 开启HSE */
-    RCC_OscInitStruct.HSEFreq = RCC_HSE_16_32MHz;
-    RCC_OscInitStruct.LSIState = RCC_LSI_OFF;                         /* 关闭LSI */
-#if defined(RCC_LSE_SUPPORT)
-    RCC_OscInitStruct.LSEState = RCC_LSE_OFF;                         /* 关闭LSE */
-#endif
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /* Use HSI as the main clock source to avoid HSE startup/lock issues after STOP mode */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;                          /* Enable HSI */
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_24MHz; /* Set HSI to 24MHz */
+  RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;                          /* No division */
+  RCC_OscInitStruct.LSIState = RCC_LSI_OFF;
 #if defined(RCC_PLL_SUPPORT)
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;                     /* 开启PLL */
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_OFF;                     /* Keep PLL off */
 #endif
-    /* 配置振荡器 */
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-    {
-        APP_ErrorHandler();
-    }
-    
-    /* 时钟源配置 */
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1; /* 选择配置时钟 HCLK,SYSCLK,PCLK1 */
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; /* 选择PLLCLK作为系统时钟 */
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;     /* AHB时钟 1分频 */
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;      /* APB时钟 1分频 */
-    /* 配置时钟源 */
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-    {
-        APP_ErrorHandler();
-    }
+
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    APP_ErrorHandler();
+  }
+
+  /* Select HSI as system clock */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+
+  /* HSI 24MHz works at FLASH_LATENCY_0 */
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    APP_ErrorHandler();
+  }
 }
 
 static void APP_EnterStopMode(void)
 {
   APP_LOG("Enter STOP mode");
+  
+  // Wait for USART1 transmission to complete before disabling clocks
+  while (__HAL_UART_GET_FLAG(&Uart1_Handle, UART_FLAG_TC) == RESET);
+  
   HAL_SuspendTick();
-  HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
+  HAL_PWR_EnterSTOPMode(PWR_MAINREGULATOR_ON, PWR_STOPENTRY_WFI);
+  
+  /* DIAGNOSTIC: Flash LED3 very fast right after waking up */
+  for(volatile int i=0; i<300000; i++) {
+     if (i % 30000 == 0) LED3_TOGGLE();
+  }
+  
   HAL_ResumeTick();
+  
+  // Re-configure system clock after waking up (since STOP mode turns off HSI/PLL/HSE)
   APP_SystemClockConfig();
   APP_LOG("Leave STOP mode");
 }
