@@ -1,50 +1,111 @@
-
 #include "main.h"
 #include "mems/vibration_sensor.h"
 #include "spi/bsp_spi.h"
 #include "usart/bsp_usart.h"
 #include "led/bsp_gpio_led.h"
 #include "mems/sc7a20h.h"
-// #include "bsp_low_power.h"
+
+/* FreeRTOS headers */
+#include "FreeRTOS.h"
+#include "task.h"
 
 #define DEBUG_LOG_ENABLE 0
 
 static void APP_EnterStopMode(void);
-void PWM_Test(void);
+void vPWMTask(void *pvParameters);
+void vMainTask(void *pvParameters);
+
+extern void Usart_SendString(uint8_t *str);
 
 /**
-  * @brief  应用程序入口函数.0
+  * @brief  应用程序入口函数.
   * @retval int
   */
 int main(void)
 {
-    HAL_Init();
-    APP_SystemClockConfig();
+  HAL_Init();
+  APP_SystemClockConfig();
 
-    DEBUG_USART_Config(115200);
-    Bsp_Led_Init();
-    Bsp_Led_PWM_Init();
-    
-    /* PWM Fading/Breathing test for left/right LEDs (LED3 & LED4) */
-    /* Comment out the line below to run the standard vibration sensor low power flow */
-    PWM_Test();
+  DEBUG_USART_Config(115200);
+  Usart_SendString((uint8_t *)"[DBG] UART configured\r\n");
+  
+  Bsp_Led_Init();
+  Usart_SendString((uint8_t *)"[DBG] LED Init done\r\n");
+  
+  Bsp_Led_PWM_Init();
+  Usart_SendString((uint8_t *)"[DBG] LED PWM Init done\r\n");
 
-    // Debugging For LowPower
-    //BSP_LowPower_Init();
-    //BSP_LowPower_ConfigExternalWakeup(GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
-    // WakeupSource_t reason = BSP_LowPower_GetWakeupReason();
-    // if (reason == WAKEUP_EXTI_PA0) {
-    //     // GPIO PA0 triggered wakeup
-    // }
-    //BSP_LowPower_EnterStandby(WAKEUP_EXTI_PA0);
-
-
-  APP_LOG("System boot");
   BSP_SPI_Init();
-  APP_LOG("SPI ready");
+  Usart_SendString((uint8_t *)"[DBG] SPI Init done\r\n");
 
+  /* Create FreeRTOS Tasks */
+  Usart_SendString((uint8_t *)"[DBG] Creating Tasks...\r\n");
+  if (xTaskCreate(vPWMTask, "PWMTask", 64, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
+  {
+    Usart_SendString((uint8_t *)"[ERR] PWMTask creation failed\r\n");
+    APP_ErrorHandler();
+  }
+  if (xTaskCreate(vMainTask, "MainTask", 160, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
+  {
+    Usart_SendString((uint8_t *)"[ERR] MainTask creation failed\r\n");
+    APP_ErrorHandler();
+  }
 
-  # if (DEBUG_LOG_ENABLE)
+  /* Start FreeRTOS Scheduler */
+  Usart_SendString((uint8_t *)"[DBG] Starting Scheduler...\r\n");
+  vTaskStartScheduler();
+
+  /* Should never reach here */
+  while (1)
+  {
+  }
+}
+
+/* NOTE: HAL_IncTick() is called from TIM14_IRQHandler (see py32f0xx_it.c).
+ * SysTick is exclusively owned by FreeRTOS and is NOT used for HAL timebase.
+ * Therefore, vApplicationTickHook is NOT defined here and configUSE_TICK_HOOK = 0. */
+
+/**
+  * @brief  Task to control LED3 & LED4 PWM brightness (Alternate Breathing).
+  */
+void vPWMTask(void *pvParameters)
+{
+  (void)pvParameters;
+  uint16_t brightness = 0;
+  int8_t direction = 1;
+
+  while (1)
+  {
+    /* Breathe LED3 and LED4 in opposite directions */
+    Bsp_Led_PWM_SetBrightness(3, brightness);
+    Bsp_Led_PWM_SetBrightness(4, 1000 - brightness);
+    
+    brightness += 10 * direction;
+    if (brightness >= 1000)
+    {
+      brightness = 1000;
+      direction = -1;
+      vTaskDelay(pdMS_TO_TICKS(100)); /* Hold at maximum brightness */
+    }
+    else if (brightness <= 0)
+    {
+      brightness = 0;
+      direction = 1;
+      vTaskDelay(pdMS_TO_TICKS(100)); /* Hold at off */
+    }
+    
+    vTaskDelay(pdMS_TO_TICKS(15)); /* 15ms step delay for smooth transition */
+  }
+}
+
+/**
+  * @brief  Main Application Task (Vibration Monitoring & Low Power)
+  */
+void vMainTask(void *pvParameters)
+{
+  (void)pvParameters;
+
+#if (DEBUG_LOG_ENABLE)
   APP_LOG("Debug log enabled, skipping vibration sensor init");
   
   /* Initialize SC7A20H for accelerometer testing */
@@ -64,21 +125,12 @@ int main(void)
   /* Test loop: print XYZ every 1 second */
   while (1)
   {
-      static uint32_t last_print_tick = 0U;
-      uint32_t current_tick = HAL_GetTick();
-      
-      /* Print XYZ every 1 second */
-      if ((current_tick - last_print_tick) >= 1000U)
-      {
-          last_print_tick = current_tick;
-          SC7A20H_PrintAccel();
-          LED2_TOGGLE();  /* Toggle LED to show main loop is running */
-      }
-      
-      HAL_Delay(10);  /* Small delay to avoid CPU spinning */
+      SC7A20H_PrintAccel();
+      LED2_TOGGLE();  /* Toggle LED to show main loop is running */
+      vTaskDelay(pdMS_TO_TICKS(1000));
   }
 
-  #else
+#else
   if (VibrationSensor_Init() != HAL_OK)
   {
     APP_LOG("Vibration sensor bring-up failed");
@@ -86,7 +138,7 @@ int main(void)
     while (1)
     {
       LED2_TOGGLE();
-      HAL_Delay(100);
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
   }
 
@@ -108,7 +160,7 @@ int main(void)
           VibrationSensor_ClearWakeEvent();
       }
       
-      HAL_Delay(1000);
+      vTaskDelay(pdMS_TO_TICKS(1000));
     }
     
     // Ensure LED2 is turned off during sleep to minimize power consumption
@@ -131,11 +183,11 @@ int main(void)
       APP_LOG("Wakeup event detected: Unknown source");
     }
   }
-  #endif
+#endif
 }
 
 /**
-	* @brief  系统时钟配置函数 内部HSI倍频 主频48M
+  * @brief  系统时钟配置函数 内部HSI 主频24M
   * @param  无
   * @retval 无
   */
@@ -179,6 +231,9 @@ static void APP_EnterStopMode(void)
   // Wait for USART1 transmission to complete before disabling clocks
   while (__HAL_UART_GET_FLAG(&Uart1_Handle, UART_FLAG_TC) == RESET);
   
+  /* Disable interrupts to prevent task switching before clock is restored */
+  __disable_irq();
+  
   HAL_SuspendTick();
   HAL_PWR_EnterSTOPMode(PWR_MAINREGULATOR_ON, PWR_STOPENTRY_WFI);
   
@@ -191,38 +246,11 @@ static void APP_EnterStopMode(void)
   
   // Re-configure system clock after waking up (since STOP mode turns off HSI/PLL/HSE)
   APP_SystemClockConfig();
-  APP_LOG("Leave STOP mode");
-}
-
-void PWM_Test(void)
-{
-  APP_LOG("Starting Left (LED3) and Right (LED4) alternate breathing test...");
   
-  uint16_t brightness = 0;
-  int8_t direction = 1;
-
-  while (1)
-  {
-    /* Breathe LED3 and LED4 in opposite directions */
-    Bsp_Led_PWM_SetBrightness(3, brightness);
-    Bsp_Led_PWM_SetBrightness(4, 1000 - brightness);
-    
-    brightness += 10 * direction;
-    if (brightness >= 1000)
-    {
-      brightness = 1000;
-      direction = -1;
-      HAL_Delay(100); /* Hold at maximum brightness */
-    }
-    else if (brightness <= 0)
-    {
-      brightness = 0;
-      direction = 1;
-      HAL_Delay(100); /* Hold at off */
-    }
-    
-    HAL_Delay(15); /* 15ms step delay for smooth transition */
-  }
+  /* Re-enable interrupts after system clock is fully configured */
+  __enable_irq();
+  
+  APP_LOG("Leave STOP mode");
 }
 
 /**
@@ -258,5 +286,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   }
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT Puya *****END OF FILE******************/

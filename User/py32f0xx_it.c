@@ -24,6 +24,10 @@
 #include "main.h"
 #include "mems/vibration_sensor.h"
 #include "py32f0xx_it.h"
+#include "py32f0xx_hal_tim.h"
+
+/* External variables --------------------------------------------------------*/
+extern TIM_HandleTypeDef htim14;  /* HAL timebase timer defined in py32f0xx_hal_msp.c */
 
 
 
@@ -56,27 +60,7 @@ void HardFault_Handler(void)
   }
 }
 
-/**
-  * @brief This function handles System service call via SWI instruction.
-  */
-void SVC_Handler(void)
-{
-}
-
-/**
-  * @brief This function handles Pendable request for system service.
-  */
-void PendSV_Handler(void)
-{
-}
-
-/**
-  * @brief This function handles System tick timer.
-  */
-void SysTick_Handler(void)
-{
-  HAL_IncTick();
-}
+/* System exception handlers (SVC, PendSV, SysTick) are implemented by FreeRTOS via macros in FreeRTOSConfig.h */
 
 /******************************************************************************/
 /* PY32F0xx Peripheral Interrupt Handlers                                     */
@@ -84,6 +68,29 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file.                                          */
 /******************************************************************************/
+
+/**
+  * @brief  TIM14 interrupt handler - used as HAL 1ms timebase source.
+  *         Calls HAL_IncTick() to increment the HAL tick counter (uwTick).
+  *         This replaces the SysTick_Handler role for HAL, since SysTick is
+  *         exclusively owned by FreeRTOS.
+  */
+void TIM14_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&htim14);
+}
+
+/**
+  * @brief  Called by HAL_TIM_IRQHandler when the timer update event fires.
+  *         We use this to increment the HAL millisecond tick counter.
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM14)
+  {
+    HAL_IncTick();
+  }
+}
 
 void EXTI0_1_IRQHandler(void)
 {
