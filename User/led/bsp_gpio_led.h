@@ -10,6 +10,9 @@
 #define		LED2_GPIO_PORT					GPIOA
 #define		LED2_GPIO_PIN						GPIO_PIN_2
 
+#include "py32f0xx_ll_gpio.h"
+#include "py32f0xx_ll_tim.h"
+
 #define		LED3_GPIO_CLK_ENABLE		__HAL_RCC_GPIOA_CLK_ENABLE
 #define		LED3_GPIO_PORT					GPIOA
 #define		LED3_GPIO_PIN						GPIO_PIN_3
@@ -45,8 +48,9 @@
 
 
 void Bsp_Led_Init(void);
+void Bsp_Led_PWM_Init(void);
+void Bsp_Led_PWM_SetBrightness(uint8_t led_num, uint16_t brightness);
 
 
 
 #endif /* __BSP_LED_H */
-

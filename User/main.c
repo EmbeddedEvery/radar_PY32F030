@@ -10,6 +10,7 @@
 #define DEBUG_LOG_ENABLE 0
 
 static void APP_EnterStopMode(void);
+void PWM_Test(void);
 
 /**
   * @brief  应用程序入口函数.0
@@ -22,6 +23,11 @@ int main(void)
 
     DEBUG_USART_Config(115200);
     Bsp_Led_Init();
+    Bsp_Led_PWM_Init();
+    
+    /* PWM Fading/Breathing test for left/right LEDs (LED3 & LED4) */
+    /* Comment out the line below to run the standard vibration sensor low power flow */
+    PWM_Test();
 
     // Debugging For LowPower
     //BSP_LowPower_Init();
@@ -76,7 +82,12 @@ int main(void)
   if (VibrationSensor_Init() != HAL_OK)
   {
     APP_LOG("Vibration sensor bring-up failed");
-    APP_ErrorHandler();
+    /* Fast flash LED2 (100ms interval) to indicate startup failure */
+    while (1)
+    {
+      LED2_TOGGLE();
+      HAL_Delay(100);
+    }
   }
 
   APP_LOG("Vibration sensor initialized successfully.");
@@ -181,6 +192,37 @@ static void APP_EnterStopMode(void)
   // Re-configure system clock after waking up (since STOP mode turns off HSI/PLL/HSE)
   APP_SystemClockConfig();
   APP_LOG("Leave STOP mode");
+}
+
+void PWM_Test(void)
+{
+  APP_LOG("Starting Left (LED3) and Right (LED4) alternate breathing test...");
+  
+  uint16_t brightness = 0;
+  int8_t direction = 1;
+
+  while (1)
+  {
+    /* Breathe LED3 and LED4 in opposite directions */
+    Bsp_Led_PWM_SetBrightness(3, brightness);
+    Bsp_Led_PWM_SetBrightness(4, 1000 - brightness);
+    
+    brightness += 10 * direction;
+    if (brightness >= 1000)
+    {
+      brightness = 1000;
+      direction = -1;
+      HAL_Delay(100); /* Hold at maximum brightness */
+    }
+    else if (brightness <= 0)
+    {
+      brightness = 0;
+      direction = 1;
+      HAL_Delay(100); /* Hold at off */
+    }
+    
+    HAL_Delay(15); /* 15ms step delay for smooth transition */
+  }
 }
 
 /**
